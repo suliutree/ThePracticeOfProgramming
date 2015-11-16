@@ -35,8 +35,8 @@
     字符或子串，Java的String类里有一个indexOf方法，C++的类属算法find几乎能用于任何数据类型。如果对某个数据类型有这种函数，
     我们就应该直接用它。
         char *strchr(const char* s, char c);    查找字符串s中首次出现字符c的位置
-        char *strstr(char *str1, char *str2);   若str2是str1的子串，则先确定str2在str1中第一次出现的位置，并返回此位置到str1
-                                                末尾的所有字符
+        char *strstr(char *str1, char *str2);   若str2是str1的子串，则先确定str2在str1中第一次出现的位置，并返回此位置到
+                                                str1末尾的所有字符
 
         下面的程序来自一个分析HTML的程序，这里有一个具有实际规模的数组，其中为成百个独立的字符定义了文字名：
         typedef struct Nameval Nameval;
