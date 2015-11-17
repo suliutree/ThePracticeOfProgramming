@@ -197,3 +197,90 @@
     换，也不需要知道元素的大小。对于已知排序关系的类型，它甚至不要求显示的比较函数。
         int arr[N];
         sort(arr, arr+N);
+
+<br>
+####6.可增长数组
+
+        下面的代码定义了一个元素为Nameval类型的可增长数组，新元素将被加到有关数组的最后。在必要时数组将自动增大以提供新
+    的空间。任何元素都可以通过下标在常数时间里访问。这种东西类似于Java和C++库中的向量类。
+        typedef struct Nameval Nameval;
+        struct Nameval {
+            char *name;
+            int value;
+        };
+        
+        struct NVtab {
+            int nval;
+            int max;
+            Nameval *nameval;
+        }nvtab;
+        
+        enum { NVINIT = 1, NVGROW = 2};
+        
+        /* addname: add new name and value to nvtab*/
+        int addname(Nameval newname)
+        {
+            Nameval *nvp;
+            if (nvtab.nameval == NULL) {
+                nvtab.nameval = (Nameval *)malloc(NVINIT * sizeof(Nameval));
+                if (nvtab.nameval == NULL)
+                    return -1;
+                nvtab.max = NVINIT;
+                nvtab.nval = 0;
+            } else if (nvtab.nval >= nvtab.max) {
+                nvp = (Nameval *)realloc(nvtab.nameval, (NVGROW * nvtab.max) * sizeof(Nameval));
+                if (nvp == NULL)
+                    return -1;
+                nvtab.max *= NVGROW;
+                nvtab.nameval = nvp;
+            }
+            nvtab.nameval[nvtab.nval] = newname;
+            return nvtab.nval++;
+        }
+    函数addname返回刚加入数组的项的下标，出错的时候返回-1.
+        对realloc调用将把数组增长到一个新的规模，并保持已有的元素不变。这个函数返回指向新数组的指针；当存储不够时返回
+    NULL。注意，上面的代码中没有采用下面这种方式：
+        ?   nvtab.nameval = (Nameval *)realloc(nvtab.nameval, (NVGROW*nvtab.max) * sizeof(Nameval));
+        如果采用这种形式，当重新分配失败时原来的数组就会丢失。
+        我们开始用一个非常小的初值（NVINIT = 1）确定数组规模。这迫使程序一定要增长其数组，保证这段程序能够被执行。如果这
+    段代码放在产品里使用，初始值可以改的大一些。当然由小的初始值引起的代价也是微不足道的。
+        按说realloc的返回值不必强制到最后类型，因为C能自动完成对void*的提升。而C++中就不同，在那里必须做类型强制。有人这
+    里会争辩，究竟是应该做强制（这样做清晰而认真）还是不做强制（因为强制实际上可能掩盖真正的错误）。我们选择写强制，是因
+    为这种写法能同时适用于C和C++，付出的代价是减少了C编译器检出错误的可能性。通过允许使用两种编译器，我们也得到了一点补
+    偿。
+        删除名字需要一点诀窍，因为必须决定怎样填补删除后数组中留下的空隙。如果元素的顺序并不重要，最简单的办法就是把位于
+    数组的最后元素复制到这里。如果还必须保持原有的顺序，我们就只能把空洞后面的所有元素前移一个位置：
+        int delname(char *name)
+        {
+            int i;
+            for (i = 0; i < nvtab.nval; i++)
+                if (strcmp(nvtab.nameval[i].name, name) == 0) {
+                    memmove(nvtab.nameval + i, nvtab.nameval + i + 1, (nvtab.nval - (i+1)) * sizeof(Nameval));
+                    nvtab.nval--;
+                    return 1;
+                }
+                return 0;
+        }
+    这个程序里调用memmove，通过把元素向下移一个位置的方法将数组缩短。memmove是标准库函数，用于复制任意大小的存储区域。
+        在ANSI C的标准库里定义了两个相关的函数：memcpy的速度快，但是如果源位置和目标位置重叠，它有可能覆盖掉存储区中的
+    某些部分；memmove函数的速度可能慢些，但总能保证复制的正确完成。
+        也可以使用下面的饿循环代替程序里对memmove的调用：
+        int j;
+        for (j = i; j < nvtab.nval - 1; j++)
+            nvtab.nameval[j] = nvtab.nameval[j+1];
+    我们喜欢用memmove，因为这样可以避免人很容易犯的复制顺序的错误。例如，如果这里要做的是插入而不是删除，那么循环的顺序
+    就必须反过来，以避免覆盖掉数组元素。通过调用memmove完成工作就不必为这些事操心了。
+        
+<br>
+####7.表
+
+        
+
+
+
+
+
+
+
+
+
