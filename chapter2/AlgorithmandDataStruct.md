@@ -274,7 +274,83 @@
 <br>
 ####7.表
 
-        
+        在C里通常不是直接定义表的类型list，而是从某种元素开始，例如HTML的元素Nameval，给它加一个指针，以便链接到下一个
+    元素：
+        trpedef struct Nameval Nameval;
+        struct Nameval {
+            char *name;
+            int value;
+            Nameval *next;
+        };
+        我们无法在编译时初始化一个非空的表，这点也与数组不同。表应该完全动态构造起来的。首先我们需要有方法来构造一个项。
+        最直接的方式是定义适当的函数，完成有关的非配工作，这里称它为newitem：
+            Nameval *newitem(char *name, int value)
+            {
+                Nameval *newp;
+                
+                newp = (Nameval *)emalloc(sizeof(Nameval));
+                newp->name = name;
+                newp->value = value;
+                newp->next = NULL;
+                return newp;
+            }
+        函数emalloc将调用malloc，如果分配失败，它报告一个错误并结束程序的执行。函数的定义代码在第4章给出，现在只要认定
+        emalloc是个存储分配函数，它绝不会以失败的情况返回。
+            构造表最简单而又快速的方法就是把每个元素都加在表的最前面：
+            Nameval *addfront(Nameval *listp, Nameval *newp)
+            {
+                newp->next = listp;
+                return newp;
+            }
+            当一个表被修改时，结果可能得到另一个首元素，就像addfront里的情况。对表做更新操作的函数必须返回指向新首元素
+        的指针，这个指针将被存入保持着这个表的变量里。函数addfront和这组函数里的其它函数都返回指向表中首元素的指针，以
+        此作为它们的返回值。函数的典型使用方式是：
+            nvlist = addfront(nvlist, newitem("smiley", 0x263A));
+        这种设计对于原表为空的情况同样可以用，函数也可以方便的用在表达式里。
+            如果要在表末尾加一个元素，这就是一个O(n)的操作，因为函数必须穿越整个表，直到找到了表的末端：
+            Nameval *addend(Nameval *listp, Nameval *newp)
+            {
+                Nameval *p;
+                if (listp == NULL)
+                    return newp;
+                for (p = listp; p->next != NULL; p = p->next)
+                    ;
+                p->next = newp;
+                return listp;
+            }
+        如果想把addend做成一个O(1)的操作，那么就必须维持另一个独立的指向表尾的指针。除了总需要费心维护表尾指针外，这种
+        做法还有另一个缺点：表再不是由一个指针变量表示的东西了。下面我们将坚持最简单的风格。
+            要检索具有某个特定名字的项，应该沿着next指针走下去：
+            Nameval *lookup(Nameval *listp, char *name)
+            {
+                for ( ; listp != NULL; listp = listp->next)
+                    if (strcmp(name, listp->name) == 0)
+                        return listp;
+                return NULL;
+            }
+        如果要打印表里的所有元素，可以直接写一个函数，它穿越整个表并打印每个元素；要计算表的长度，可以写一个函数穿越整
+        个表，其中使用一个计数器；如此等等。这里再提出另一种解决问题的方式，那就是写一个名为apply的函数，它穿越表并对表
+        的每个元素调用另一个函数。我们可以把apply做的更具一般性，为它提供一个参数，把它传递给apply对表元素调用的那个函
+        数。这样，apply就有了3个参数：一个表、一个将要被作用于表里每个元素的函数以及提供给该函数使用的一个参数：
+            void apply(Nameval *listp, void (*fn)(Nameval*, void*), void *arg)
+            {
+                for ( ; listp != NULL; listp = listp->next)
+                    (*fn)(listp, arg);
+            }
+        appaly的第二个参数是一个函数指针，这个函数有两个参数，返回类型是void。这种标准描述方式在语法上很难看：
+            void (*fn)(Nameval*, void*)
+        这说明了fn是一个指向void函数的指针。也就是说，fn本身是个变量，它将以一个返回值为void的函数地址作为值。被fn指向
+        的函数应该有两个参数，一个参数的类型是Nameval*，即表的元素类型；另一个是void*，是个通用指针，它将作为fn所指函
+        数的一个参数。
+            要使用appaly，例如打印一个表的元素，我们可以写一个简单的函数，其参数包括一个格式描述串：
+            void printnv(Nameval *p, void *arg)
+            {
+                char *fmt;
+                fmt = (char *)arg;
+                printf(fmt, p->name, p->value);
+            }
+        它的调用形式是：
+            apply(nvlist, printnv, "%s: %x\n");
 
 
 
