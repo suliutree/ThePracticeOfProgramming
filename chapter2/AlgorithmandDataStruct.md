@@ -351,6 +351,33 @@
             }
         它的调用形式是：
             apply(nvlist, printnv, "%s: %x\n");
+            为统计表中的元素个数也需要定义一个函数，其特殊参数是一个指向整数的指针，该整数倍用作计数器：
+            void inccounter(Nameval *p, void *arg)
+            {
+                int *ip;
+                
+                ip = (int *)arg;
+                (*ip++);
+            }
+        对这个函数的调用可以是：
+            int n;
+            n = 0;
+            appaly(nvlist, inccounter, &n);
+            printf("%d elements in nvlist\n", n);
+            并不是每个表操作都能很方便的以这种方式实现。要销毁一个表就必须特别小心：
+            void freeall(Nameval *listp)
+            {
+                Nameval *next;
+                for ( ; listp != NULL; listp = next) {
+                    next = listp->next;
+                    free(listp);
+                }
+            }
+        当一块存储区被释放之后，程序里就不能再使用它了。因此，在释放listp所指向的元素之前，必须首先把listp->next的值
+        保存到一个局部变量(next)里。如果把上面的循环写成下面的样子：
+            ?   for ( ; listp != NULL; listp = listp->next)
+            ?       free(listp);
+        由于listp->next原来的值完全可能被free复写掉，这个代码有可能会失败。
 
 
 
