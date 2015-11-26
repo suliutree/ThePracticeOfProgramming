@@ -378,7 +378,98 @@
             ?   for ( ; listp != NULL; listp = listp->next)
             ?       free(listp);
         由于listp->next原来的值完全可能被free复写掉，这个代码有可能会失败。
+        如果想从表里删除一个元素，需要做的事情更多一些：
+        Nameval *delitem(Nameval (listp, char *name)
+        {
+            Nameval *p, *prev;
+            prev = NULL;
+            for (p = listp; p != NULL; p = p->next) {
+                if (strcmp(name, p->name) == 0) {
+                    if (prev == NULL)
+                        listp = p->next;
+                    else
+                        prev->next = p->next;
+                    free(p);
+                    return listp;
+                }
+                prev = p;
+            }
+            eprintf("delitem: %s not in list", name);
+            return NULL;
+        }
+    与freeall里的处理方式一样，delitem也不释放name域。
+        函数eprintf显示一条错误信息并终止程序执行，这至多是一种笨办法。想从错误中得体的恢复程序执行时困难的，需要一段
+    很长的讨论。我们把这个讨论推迟到第4章，那里还要给出eprintf的实现。
+    
+<br>
+####8.树
 
+        定义Nameval的树结点形式也很方便：
+        trpedef struct Nameval Nameval;
+        struct Nameval {
+            char *name;
+            int value;
+            Nameval *left;  /* lesser */
+            Nameval *right; /* greater */
+        };
+    这里的lesser和greater注释指明了有关链接性质：左子树存储较小的值，而右子树里存储较大的值。
+        二分检索树（在本节下面将直接它为“树”）的构建方式是:在树里递归地向下，根据情况确定向左或向右，直到找到了链接新
+    结点的正确位置。结点应该正确地初始化为Nameval类型的对象，它包含一个名字、一个值和两个空指针。新结点总是作为叶子加
+    进去的，它没有子结点。
+        Nameval *insert(Nameval *treep, Nameval *newp)
+        {
+            int cmp;
+            if (treep == NULL)
+                return newp;
+            cmp = strcmp(newp->name, treep->name);
+            if (cmp == 0)
+                weprintf("insert: duplicate entry %s ignored", newp->name);
+            else if (cmp < 0)
+                treep->left = insert(treep->left, newp);
+            else
+                treep->right = insert(treep->right, newp);
+            return treep;
+        }
+    至此我们一直没提重复项的问题。在上面这个 i n s e r t函数里，对企图向树中加入重复项的情况(cmp == 0)将输出一个“抱怨”
+    信息。在表插入函数里没有这样做，因为如果要做这件事，就必须检索整个表，这就把插入由一个 O( 1 )操作变成了O(n)操作。
+    对树而言，这个测试完全不需要额外开销。但是另一方面，在出现重复时应该怎么办，数据结构本身并没有清楚的定义。对具体应
+    用，有时可能应该接受重复情况，有时最合理的处理是完全忽略它。
+        函数weprintf是eprintf的一个变形，它打印错误信息，在输出信息的前面加上前缀词warning。这个函数并不终止程序执行，
+    这一点与eprintf不同。
+        对树的lookup操作与insert很像：
+        Nameval *lookup(Nameval *treep, char *name)
+        {
+            int cmp;
+            if (treep == NULL)
+                return NULL;
+            cmp = strcmp(name, treep->name);
+            if (cmp == 0)
+                return treep;
+            else if (cmp < 0)
+                return lookup(treep->left, name);
+            else
+                return lookup(treep->right, name);
+        }
+        将其改为循环算法：
+        Nameval *nrlookup(Nameval *treep, char *name)
+        {
+            int cmp;
+            while (treep != NULL) {
+                cmp = strcmp(name, treep->name);
+                if (cmp == 0)
+                    return treep;
+                else if (cmp < 0)
+                    treep = treep->left;
+                else 
+                    treep = treep->right;
+            }
+            return NULL;
+        }
+        我们可以采用管理表的某些技术，写一个一般的树遍历器，它对树的每个结点调用另一个函数。但是这次还需要做一些选择，
+    确定什么时候对这个项进行操作，什么时候处理树的其余部分。
+        在中序遍历中对数据项的操作在访问了左子树之后，并在访问右子树之前：
+        
+        
 
 
 
