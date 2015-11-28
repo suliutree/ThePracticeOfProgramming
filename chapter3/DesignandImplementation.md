@@ -92,7 +92,7 @@
         
         State *statetab[NHASH];
         现在看一下图示，整个数据结构将具有下面的样子：
-        ![image](https://github.com/suliutree/ThePracticeOfProgramming/blob/master/Image/01.png)
+        ![](https://github.com/suliutree/ThePracticeOfProgramming/blob/master/Image/01.png)
         我们需要一个作用于前缀的散列函数，前缀的形式是字符串数组，显然不难对第2章的字符串散列函数做一点修改，使之可用
     于字符串的数组。下面的函数对数组里所有字符串的拼接做散列：
         
