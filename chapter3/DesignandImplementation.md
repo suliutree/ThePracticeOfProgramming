@@ -91,8 +91,171 @@
         };
         
         State *statetab[NHASH];
-        
-        
+        现在看一下图示，整个数据结构将具有下面的样子：
+        ![](https://github.com/suliutree/ThePracticeOfProgramming/blob/master/Image/01.png)
+        我们需要一个作用于前缀的散列函数，前缀的形式是字符串数组，显然不难对第2章的字符串散列函数做一点修改，使之可用
+    于字符串的数组。下面的函数对数组里所有字符串的拼接做散列：
+        /* hash: compute hash value for array of NPREF strings */
+        unsigned int hash(char *s[NPREF])
+        {
+            unsigned int h;
+            unsigned char *p;
+            int i;
+            
+            h = 0;
+            for (i = 0; i < NPREF; i++)
+                for (i = 0; i < NPREF; i++)
+                    h = MULTIPLIER * h + *p;
+            return h % NHASH;
+        }
+        再加上对检索函数的简单修改，散列表的实现就完成了：
+        /* lookup: search for prefix; create if requested. */
+        /* creation doesn't strdup so strings mustn't change later. */
+        State* lookup(char *prefix[NPREF], int create)
+        {
+            int i, h;
+            State *sp;
+            
+            h = hash(prefix);
+            for (sp = statetab[h]; sp != NULL; sp = sp->next) {
+                for (i = 0; i < NPREF; i++)
+                    if (strcmp(prefix[i], sp->pref[i]) != != 0)
+                        break;
+                if (i == NPREF)
+                    return sp;
+            }
+            
+            if (create) {
+                sp = (State *)emalloc(sizeof(State));
+                for (i = 0; i < NPREF; i++)
+                    sp->pref[i] = prefix[i];
+                sp->suf = NULL;
+                sp->next = statetab[h];
+                statetab[h] = sp;
+            }
+            return sp;
+        }
+    注意，lookup在建立新状态时并不做输入字符串的拷贝。它只是向sp->pref[]里存入一个指针。这实际上要求调用lookup的程序
+    必须保证这些数据不会被覆盖。例如，如果字符串原来存放在I/O缓冲区里，那么在调用lookup前必须先做一个拷贝。负责后面的
+    输入就会把散列表指针所指的数据覆盖掉。对于跨越某个界面的共享资源，常常需要确定它的拥有者到底是谁。
+        作为下一步，我们需要在读入文件的同时构造散列表：
+        void build(char *prefix[NPREF], FILE *f)
+        {
+            char buf[100], fmt[10];
+            
+            /* create a format string; %s could overflow buf */
+            sprintf(fmt, "%%%ds", sizeof(buf) - 1);
+            while (fscanf(f, fmt, buf) != EOF)
+                add(prefix, estrdup(buf));
+        }
+        对sprintf的调用有些奇怪，这完全是为了避免fscanf的一个非常烦人的问题，而从其他方面看，使用fscanf都是很合适的。
+    如果以s%作为格式符调用fscanf，那就是要求把文件的下一个空白界定的词读入缓冲区。但是，假如在这种情况下没有长度限制，
+    特别长的词就可能导致输入缓冲区溢出，从而酿成大祸。假设缓冲区的长度为100个字节（这远远超出正常文本中可能出现的词的
+    长度），我们可以用%99s（留一个字节给串的结束符'\0'），这是告诉fsanf读到99个字符就结束。这样做有可能把过长的词分成
+    段，虽然是不幸的，但确实安全的。我们可以声明：
+        ?   enum { BUFSIZE = 100 };
+        ?   char fmt[] = "%99s";
+    但是这里又出现了由一个带随意性的决定（缓冲区大小）导出的两个常数，并要求维护他们之间的关系。这个问题可以一下子解
+    决：只要利用sprintf动态的建立格式串，也就是上面程序采用的方式。
+        函数build有两个参数，一个是prefix数组，用于保存前面的NPREF个输入词；另一个是个FILE指针。函数把prefix和读入词
+    的一个拷贝送给add，该函数在散列表里加入一个新项，并更新前缀数组：
+        void add(char *prefix[NPREF], char *suffix)
+        {
+            State *sp;
+            
+            sp = lookup(prefix, 1); /* create if not found */
+            addsuffix(sp, suffix);
+            memmove(prefix, prefix+1, (NPREF-1)*sizeof(prefix[0]));
+            prefix[NPREF-1] = suffix;
+        }
+    对memmove的调用是在数组里做删除的一个惯用法。该操作把前缀数组里从1到NPREF-1的元素向下搬，移到从0到NPREF-2的位置。
+    这也删去了第一个前缀次，并为新来的一个在后面腾出了位置。
+        函数addsuffix把一个新的后缀加进去：
+        void addsuffix(State *sp, char *suffix)
+        {
+            Suffix *suf;
+            suf = (Suffix *)emalloc(sizeof(Suffix));
+            suf->word = suffix;
+            suf->next = sp->suf;
+            sp->suf = suf;
+        }
+    这里的状态更新操作分由两个函数实现：add完成给有关前缀加入一个后缀的一般性工作，addsufffix做的是由特定实现方式决定
+    的动作，把一个词具体的加进后缀链表里。函数add由build调用，而addsuffix只在add内部使用，因为这里牵涉到的是一个实现
+    细节，这个细节今后也可能会变化。所以，虽然该操作只在这一个地方用，最好也将它建立为一个独立的函数。
+    
+<br>
+####4.生成输出
+
+        数据结构构造好之后，下一步就是产生输出。这里的基本思想与前面类似：给定一个前缀，随机地选出它的某个后缀，打印
+    输出并更新前缀。当然，这里说的是处理过程的稳定状态，还需要弄清算法应该如何开始和结束。如果我们已经记录了文中第一
+    个前缀，操作就非常简单了：直接从它们起头。结束也容易。我们需要一个标志字来结束算法，在所有正常输入完成之后，我们
+    可以加进一个结束符，一个保证不会在任何输入里出现的“词” ：
+        build(prefix, stdin);
+        add(prefix, NONWORD);
+    NONWORD应该是某个不可能在正规输入里遇到的值。由于输入词是由空白界定的，一个空白的“词”总能扮演这个角色，比如用一个
+    换行符号：
+        char NONWORD[] = "\n";  /* cannot appear as real word */
+        还有一件事也需要考虑：如果输入根本就不够启动程序，那么又该怎么办呢？处理这类问题有两种常见方式：或是在遇到输
+    入不足时立即退出执行；或是通过安排使得输入总是足够的，从而就完全不必再理会这个问题了。对这里的程序而言，采用后一
+    种方式能够做得很好。
+        我们可以用一个伪造的前缀来初始化数据结构构造和输出生成过程，这样就能保证程序的输入总是足够的。在做循环准备时，
+    我们把前缀数组装满NONWORD词。这样做有一个非常好的效果：输入文件里的第一个词将总是这个伪造前缀的第一个后缀 。这样，
+    生成循环要打印的全都是它自己生成的后缀。
+        如果输出非常长，我们可以在产生了一定数目的词之后终止程序；另一种情况是程序遇到了后缀 NONWORD。最终看哪个情况
+    先出现。
+        在数据的最后加上几个 NONWORD，可以大大简化程序的主处理循环。这是一种常用技术的又一个实例：给数据加上哨卫，用
+    以标记数据的界限。
+        作为编程的一个规则，我们总应该设法处理数据中各种可能的非正常情况、意外情况和特殊情况。编出正确代码很不容易，
+    因此应该尽量使控制流简单和规范。
+        函数generate采用的就是前面已经给出了轮廓的算法。它产生每行一个词的输出，用文字处理程序可以把它们汇成长的行。
+    第 9章将给出一个能完成这个工作的简单格式化程序fmt。
+        借助于数据开始和结束的NONWORD串，generate也很容易开始和结束：
+        /* generate: produce output, one word per line */
+        void generate(int nwords)
+        {
+            State *sp;
+            Suffix *suf;
+            char *prefix[NPREF], *w;
+            int i, nmatch;
+            
+            for (i = 0; i < NPREF; i++) /* reset inital prefix */
+                prefix[i] = NONWORD;
+            
+            for (i = 0; i < nwords; i++) {
+                sp = lookup(prefix, 0);
+                nmatch = 0;
+                for (suf = sp->suf; suf != NULL; suf = suf->next)
+                    if (rand() % ++nmatch == 0) // prob = 1/nmatch
+                        w = suf->word;
+                if (strcmp(w, NONWORD) == 0)
+                    break;
+                printf("%s\n", w);
+                memmove(prefix, prefix+1, (NPREF-1)*sizeof(prefix[0]));
+                prefix[NPREF-1] = w;
+            }
+        }
+    注意，算法需要在不知道到底有多少个项的情况下随机地选取一个项。变量nmatch用于在扫描后缀表的过程中记录匹配的个数。
+    表达式：
+        rand() % ++nmatch == 0
+    增加nmatch的值，而且使它为真的概率总是 1/nmatch。这样，第一个匹配的项被选中的概率为1，第二个将有1/2的概率取代它，
+    第3个将以1/3的概率取代前面选择后留下的项，依此类推。在任何时刻，前面匹配的k个项中的每一个都有1/k的被选概率。
+        在算法开始时，p r e f i x已经被设为初始值，可以保证散列表中一定有它。这样得到的第一个suffix值就是文件里的第一
+    个词，因为它是跟随初始前缀的惟一后缀。在此之后，算法随机地选择后缀：循环中调用lookup，查出当前prefix对应的散列表
+    项，然后随机地选出一个对应后缀，打印它并更新前缀。
+        如果选出的后缀是NONWORD，则工作完成，因为已经选到了对应输入结束的状态。如果后缀不是NONWORD，则打印它，然后调
+    用memmove丢掉前缀的第一个词，把选出的后缀升格为前缀的最后一个词，并继续循环下去。
+        现在，我们可以把所有东西放到一起，装进一个main函数里，它从标准输入流读入，生成至多有指定个数的词序列：
+        int main(void)
+        {
+            int i, nwords = MAXGEN;
+            char *prefix[NPREF];            // current input prefix
+            for (i = 0; i < NPREF; i++)     // set up initial prefix
+                prefix[i] = NONWORD;
+            build(prefix, stdin);
+            add(prefix, NONWORD);
+            generate(nwords);
+            return 0;
+        }
         
     
         
