@@ -257,6 +257,84 @@
             return 0;
         }
         
+<br>
+####6.C++
+
+        实际上，前面C版本的markkov也是一个合法的C++程序。对C++而言，更合适的用法应该是定义一些类，建立起程序中需要的
+    各种对象，或多或少像我们写Java程序是所做的那样，这样可以隐蔽起许多实现细节。我们在这里希望更前进一步，使用C++的
+    Standard Template Library（标准模板库），即STL。因为STL提供许多内部机制，能完成我们需要做的许多事情。
+        deque是一种双端队列，它正好能符合我们对前缀操作的需要：可以用它存放NPREF个元素，丢掉最前面的元素并在后面添加
+    一个新的，这都是O(1)的操作。实际上，STL的deque比我们需要的东西更一般，它允许在两端进行压入和弹出，而执行性能方面
+    的保证是我们选择它的原因。
+        STL还提供了一个map容器，其内部实现基于平衡树。在map中可以存储关键码-值对。map的实现方式保证，从任何关键码出发
+    提取相关值的操作都是O(logn)。虽然map可能不如O(1)散列表效率高，但是，直接使用它就可以不必写任何代码，这样也很不错
+    （某些非标准的C++库提供了hash或hash_map容器，它的性能可能更好些）。
+        我们也可以使用内部提供的比较函数，用于对前缀中各字符串做比较。
+        手头有了这些组件，有关代码可以流畅的做出来了。下面是有关声明：
+        typedef deque<string> Prefix;
+        map<Prefix, vector<string> > statetab;
+    STL提供了deque的模板，记法deque<string>将它指定为以字符串为元素的deque。由于这个类型将在程序里多次出现，在这里用
+    一个typedef声明，将它另外命名为Prefix。这里声明了一个map类型的变量statetab，它是从前缀到后缀向量的映射。在这里工
+    作比在 C或Java中更方便，根本不需要提供散列函数或者equal方法。
+        main函数对前缀做初始化，读输入（对于标准输入，调用C++ iostream里的cin），在输入最后加一个尾巴，然后产生输出。
+    和前面各个版本完全一样。
+        int main(void)
+        {
+            int nwords = MAXGEN;
+            Prefix prefix;
+            
+            for (int i = 0; i < NPREF; i++)
+                add(prefix, NONWORD);
+            build(prefix, cin);
+            add(prefix, NONWORD);
+            generate(nwords);
+            return 0;
+        }
+        函数build使用iostream库，一次读入一个词：
+        // build: read input words, build state table
+        void build(Prefix& prefix, istream& in)
+        {
+            string buf;
+            while (in >> buf)
+            add(prefix, buf);
+        }
+    字符串buf能够根据输入词的长度需要自动增长。
+        函数add能够进一步说明使用STL的优越性：
+        // add: add word to suffix list, update prefix
+        void add(Prefix& prefix, const string& s)
+        {
+            if (prefix.size() == NPREF) {
+                statetab[prefix].push_back(s);
+                prefix.pop_front();
+            }
+            prefix.pop_back(s);
+        }
+    这几个非常简单的语句确实做了不少事情。map容器类重载了下标运算符 ( [ ]运算符)，使它在这里成为一种查询运算。表达式       
+    statetable[prefix]在statetab里完成一次查询，以prefix作为查询的关键码，返回对于所找到的项的一个引用。如果对应的向
+    量不存在，这个操作将建立一个新向量。vector和deque类的push_back函数分别把一个新字符串加到向量或deque的最后；
+    pop_front从deque里弹出头一个元素。
+        输出生成与前面版本类似：
+        void generate(int nwords)
+        {
+            Prefix prefix;
+            int i;
+            for(i = 0; i < NPREF; i++)
+                add(prefix, NONWORD);
+            for (i = 0; i < nwords; i++) {
+                vector<string>& suf = statetab[prefix];
+                const string& w = suf[rand() % suf.size()];
+                if (w == NONWORD)
+                    break;
+                cout << w << "\n";
+                prefix.pop_front();
+                prefix.push_back(w);
+            }
+        }
+        总的来说，这个版本看起来特别清楚和优雅——代码很紧凑，数据结构清晰，算法完全一目了然。可惜的是，在这里也要付出
+    一些代价：这个版本比原来的 C版本慢得多，虽然它还不是最慢的。
+        
+        
+        
     
         
         
