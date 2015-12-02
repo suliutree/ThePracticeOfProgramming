@@ -195,7 +195,46 @@
     号。数组field指向sline的各个项。下面的图显示出这三个数组的状态，表示在输入行ab, “c d”, “e” “f”, , “g,h”被处理完之后的情况。
     加阴影的字符不属于任何一个域。
 ![image](https://github.com/suliutree/ThePracticeOfProgramming/blob/master/Image/02.png)
-![image](https://github.com/suliutree/ThePracticeOfProgramming/blob/master/Image/02.png)      
+    这里是csvgetline的定义：
+        // csvgetline: get one line, grow as needed
+        // sample input: "LU", 86.25, "11/4/1998", "2:19PM", +4.0625
+        char *csvgetline(FILE *fin)
+        {
+            int i, c;
+            char *newl, *news;
+            if (line == NULL) {             // allocate on first call 
+                maxline = maxfield = 1;
+                line = (char *)malloc(maxline);
+                sline = (char *)malloc(maxline);
+                field = (char **)malloc(maxfield * sizeof(field[0]));
+                if (line == NULL || sline == NULL || field == NULL) {
+                    reset();
+                    return NULL;            // out of memory
+                }
+            }
+            for (i = 0; (c = getc(fin)) != EOF && !endofline(fin, c); i++) {
+                if (i >= maxline-1) {       // grow line
+                    maxline *= 2;           // double current size
+                    newl = (char *)realloc(line, maxline);
+                    news = (char *)realloc(sline, maxline);
+                    if (newl == NULL || news == NULL) {
+                        reset();
+                        return NULL;        // out of memory
+                    }
+                    line = newl;
+                    sline = news;
+                }
+                line[i] = c;
+            }
+            line[i] = '\0';
+            if (split() == NOMEM) {
+                reset();
+                return NULL:                // out of memory
+            }
+            return (c == EOF && i == 0) ? NULL : line;
+        }
+    一个输入行被积累存入line，必要时将调用realloc使有关数组增大，每次增大一倍。在这里还需要保持数组sline和line的大小相同。
+    csvgetline调用split，在数组field里建立域的指针，如果需要的话，这个数组也将自动增大。
     
         
             
