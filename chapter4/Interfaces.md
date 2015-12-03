@@ -195,6 +195,8 @@
     号。数组field指向sline的各个项。下面的图显示出这三个数组的状态，表示在输入行ab, “c d”, “e” “f”, , “g,h”被处理完之后的情况。
     加阴影的字符不属于任何一个域。
 ![image](https://github.com/suliutree/ThePracticeOfProgramming/blob/master/Image/02.png)
+<br>
+
     这里是csvgetline的定义：
         // csvgetline: get one line, grow as needed
         // sample input: "LU", 86.25, "11/4/1998", "2:19PM", +4.0625
@@ -235,6 +237,27 @@
         }
     一个输入行被积累存入line，必要时将调用realloc使有关数组增大，每次增大一倍。在这里还需要保持数组sline和line的大小相同。
     csvgetline调用split，在数组field里建立域的指针，如果需要的话，这个数组也将自动增大。
+        按照我们的习惯，开始时总把数组定义得很小，当需要时再让它们增大，这种方法能保证增大数组的代码总会执行到。如果分配失败，
+    我们就调用reset把所有全局变量恢复到开始的状态，以使随后对csvgetline的调用还有成功的机会。
+        // reset: set variables back to starting values
+        static void reset(void)
+        {
+            free(line); // free(NULL) permitted by ANSI C
+            free(sline);
+            free(field);
+            line = NULL;
+            sline = NULL;
+            field = NULL;
+            maxline = maxfield = nfield = 0;
+        }
+        函数endofline处理输入行的各种可能结束情况，包括回车、换行或两者同时出现，或者EOF：
+        // endofline: check for and consume \r, \n, \r\n, or EOF
+        static int endofline(FILE *fin, int c)
+        {
+            int eol;
+            
+        }
+        
     
         
             
