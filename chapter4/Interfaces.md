@@ -256,7 +256,109 @@
         {
             int eol;
             
+            eol = (c == '\r' || c == '\n');
+            if (c == '\r') {
+                c = getc(fin);
+                if (c != '\n' && c != EOF)
+                        ungetc(c, fin); // read too far; put c back
+            }
+            return eol;
         }
+    在这里使用一个独立函数是很有必要的，因为标准输入函数不会处理实际输入中可能遇到的各种各样乖张古怪的格式。
+        前面的原型里用strtok找下一标识符，其方法是查找一个分隔符，一般是个逗号。可是这种做法无法处理引号内部的逗号。在split的
+    实现里必须反映这个重要变化，虽然它的界面可以和strtok相同。考虑下面的输入行：
+        "",,""
+        ,"",
+        ,,
+    这里每行都包含三个空的域。为了保证split能剖析这些输入以及其他罕见输出，这个函数将变得更复杂一些。这又是一个例子，说明一些
+    特殊情况和边界条件会对程序起到某种支配作用。
+        // split: split line into fields
+        static int split(void)
+        {
+            char *p, **newf;
+            char *sepp;     // pointer to temporary separator character
+            int sepc;       // temporary separator character
+            
+            nfield = 0;
+            if (line[0] == '\0')
+                return 0;
+            strcpy(sline, line);
+            p = sline;
+            
+            do {
+                if (nfield >= maxfield) {
+                    maxfield *= 2;          // double current size
+                    newf = (char **)realloc(field, maxfield * sizeof(field[0]));
+                    if (newf == NULL)
+                        return NOMEM;
+                    field = newf;
+                }
+                if (*p = '"')
+                    sepp = advquoted(++p);  // skip initial quote
+                else
+                    sepp = p + strcspn(p, fieldsep);
+                sepc = sepp[0];
+                sepp[0] = '\0';             // terminate field
+                field[nfield++] = p;
+                p = sepp + 1;
+            } while (sepc == ',');
+            
+            return nfield;
+        }
+    在循环中，数组可能根据需要增大，随后它调用一个或两个函数，对下一个域进行定位和处理。如果一个域由引号开头，advquoted将找出
+    这个域，并返回指向这个域后面的分隔符的指针值。如果域不是由引号开头，程序就用标准库函数strcspn(p, s)，找下一个逗号，该函数
+    的功能是在串p里查找s中任意字符的下一次出现，返回查找中跳过的字符个数。
+        数据域里的引号由两个连续的引号表示，advquoted需要把他们缩成一个，它还将删除包围着数据域的那一对引号。由于要考虑处理某
+    些不符合我们规范的可能输入，例如"abc"def，这又会给程序增加一些复杂性。对于这种情况，我们把所有跟在第二个引号后面的东西附在
+    已有内容后面，把直到下一个分隔符的所有东西作为这个域的内容。Microsoft的Excel使用的看来是类似的算法。
+        // advquote: quoted field; return pointer to next separator
+        static char *advquoted(char *p)
+        {
+            int i, j;
+            for (i = j = 0; p[j] != '\0'; i++, j++) {
+                if (p[j] == '"' && p[++j] != '"') {
+                    // copy up to next separator or \0
+                    int k = strcspn(p + j, fieldsep);
+                    memmove(p+i, p+j, k);
+                    i += k;
+                    j += k;
+                    break;
+                }
+                p[i] = p[j];
+            }
+            p[i] = '\0';
+            return p + j;
+        }
+        由于输入行都已经切分好，csvfield和csvnfield的实现非常简单：
+        // csvfield: return pointer to n-th field
+        char *csvfield(int n)
+        {
+            if (n < 0 || n >= nfield)
+                return NULL;
+            return field[n];
+        }
+        
+        // csvnfield: return number of fields
+        int csvnfield(void)
+        {
+            return nfield;
+        }
+        最后，我们可以对原有测试驱动程序稍微做点修改，再用它来检测这个新版本的库。由于新库保留了输入行的副本(前面原型没保留)，
+    在这里可以先打印出原来的行，然后再打印各个域：
+        // csvtest main: test CSV library
+        int main()
+        {
+            int i;
+            char *line;
+            while ((line = csvgetline(stdin)) != NULL) {
+                printf("line = '%s'\n", line);
+                for (i = 0; i < csvnfield(); i++)
+                    printf("field[%d] = '%s'\n", i, csvfield(i));
+            }
+            return 0;
+        }
+        这就完成了库的C语言版本，它能够处理任意长的输入，对某些格式乖张的数据也能够做出合理处理。其中也付出了一些代价：新库的
+    大小超过第一个原型的四倍，而且包含一些很复杂的代码。在从原型转换到产品时，程序在大小和复杂性方面有所扩张是很典型的情况。
         
     
         
