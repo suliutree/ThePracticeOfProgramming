@@ -359,12 +359,150 @@
         }
         这就完成了库的C语言版本，它能够处理任意长的输入，对某些格式乖张的数据也能够做出合理处理。其中也付出了一些代价：新库的
     大小超过第一个原型的四倍，而且包含一些很复杂的代码。在从原型转换到产品时，程序在大小和复杂性方面有所扩张是很典型的情况。
-        
-    
-        
+
+<br>
+####4.C++实现
+
+        我们需要对原规范做一些改变，其中最重要的是把函数处理的对象由C语言的字符数变成C++的字符串。使用C++的字符串功能将自动解
+    决许多存储管理方面的问题，因为有关的库函数能帮我们管理存储。由于可以让域函数返回字符串，这就允许调用程序直接修改它们，比原
+    来的版本更加灵活。
+        类Csv定义了库的公共界面，它明确地隐藏了实现中使用的一些变量和函数。由于在一个类对象里包含了所有的状态信息，建立多个Csv
+    实例也不会有问题，不同实例之间是相互独立的，这就使我们的程序能够同时处理多个CSV输入流。
+        class Csv {
+            // read and parse comma-separated values
+            // sample input: "LU", 86.25, "11/4/1989", "2:19PM", +4.0625
             
-    
-    
+            public:
+                Csv(istream& fin = cin, string sep = ",") : fin(fin), fieldsep(sep) {}
+                
+                int getline(string&);
+                string getfield(int n);
+                int getnfield() const { return nfield; }
+                
+            private:
+                istream& fin;               // input file pointer
+                string line;                // input line
+                vector<string> field;       // field strings
+                int nfield;                 // number of fields
+                string fieldsep;            // separator characters
+                
+                int split();
+                int endofline(char);
+                int advplain(const string& line, string& fld, int);
+                int advquoted(const string& line, string& fld, int);
+        };
+    类的构造函数对参数提供了默认定义，按默认方式建立的Csv对象将直接从标准输入读数据，使用正规的域分隔符。这些都是可以显示的通
+    过实际参数重新设定。
+        对于string而言，它没有“不存在”这种状态，“空”串知识意味着字符串的长度为0。在这里没有NULL的等价物，我们不能用它作为文件
+    的结束信号。所以，Csv::getline中采用的方式是通过一个引用参数返回输入行，用函数返回值处理文件结束和错误报告。
+        // getline: get one line, grow as needed
+        int Csv::getline(string& str)
+        {
+            char c;
+            for (line = ""; fin.getc(c) && !endofline(c); )
+                line += c;
+            split();
+            str = line;
+            return !fin.eof();
+        }
+        函数endofline需要做一点改造。在这里程序也需要一个一个地读入字符，因为不存在能处理输入中各种变化情况的标准输入函数。
+        // endofline: check for and consume \r, \n, \r\n, or EOF
+        int Csv::endofline(char c)
+        {
+            int eol;
+            
+            eol = (c == '\r' || c == '\n');
+            if (c == '\r') {
+                fin.get(c);
+                if (!fin.eof() && c != '\n')
+                    fin.putback(c); // read too far
+            }
+            return eol;
+        }
+        这里是新版的split：
+        int Csv::split()
+        {
+            string fld;
+            int i, j;
+            
+            nfield = 0;
+            if (line.length() == 0)
+                return 0;
+            i = 0;
+            
+            do {
+                if (i < line.length() && line[i] == '"')
+                    j = advquoted(line, fld, ++i);      // skip quote
+                else
+                    j = advplain(line, fld, i);
+                if (nfield >= field.size())
+                    field.push_back(fld);
+                else
+                    field[nfield] = fld;
+                nfield++;
+                i = j + 1;
+            } while (j < line.length());
+            
+            return nfield;
+        }
+        新的advquoted用C++标准函数find_first_of确定分隔符的下一个出现位置。函数调用s.find_first_of(fieldsep, j)由字符串s的第j个
+    位置开始查找，检查fieldsep里任何字符的第一个出现。如果无法找到这种位置，该函数将返回串尾后面一个位置的指标，在最后还必须把
+    它改回范围之内。随后的一个内层for循环把字符逐个附到在fld里积累的域后面，直到分隔符处为止。
+        // advquoted: quoted field; return index of next separator
+        int Csv::advquoted(const string& s, string& fld, int i)
+        {
+            int j;
+            fld = "";
+            for (j = i; j < s.length(); j++) {
+                if (s[j] == '"' && s[++j] != '"') {
+                    int k = s.find_first_of(fieldsep, j);
+                    if (k > s.length()) // no separator found
+                        k = s.length();
+                    for (k -= j; k-- > 0)
+                        fld += s[j++];
+                    break;
+                }
+                fld += s[j];
+            }
+            return j;
+        }
+        函数find_first_of也被用在新的advplain函数里，这个函数扫过一个简单的无引号数据域。之所以需要做这种改动，其原因和前面一
+    样，因为strcspn无法用在C++串上，这是一种完全不同的数据类型。
+        // advplain: unquoted field; return index of separator
+        int Csv::advplain(const string& s, string& fld, int i)
+        {
+            int j;
+            j = s.find_first_of(fieldsep, i);   // look for separator
+            if (j > s.length())                 // none found
+                j = s.length();
+            fld = string(s, i, j - i);
+            return j;
+        }
+        函数Csv::getfield仍然非常简单，它可以直接写在类的定义里。
+        // getfield: return n-th field
+        string Csv::getfield(int n)
+        {
+            if (n < 0 || n > nfield)
+                return "";
+            else
+                return field[n];
+        }
+        现在的测试程序和前面的差不多，只有很少的改动：
+        // Csvtest main: test Csv class
+        int main()
+        {
+            string line;
+            Csv csv;
+            while (csv.getline(line) != 0) {
+                cout << "line = '" << line << "'\n";
+                for (int i = 0; i < csv.getnfield(); i++)
+                    cout << "field[" << i << "] = '" << csv.getfield(i) << "'\n";
+            }
+            return 0;
+        }
+        函数的使用方式与C版本有微小的不同。对一个包括30 000行，每行25个域的大输入文件，根据编译程序的不同，这个C++版本比前面的C
+    版本慢40%到4倍。正如我们对markov程序做比较时看到的，实际上，这种变化情况主要反映出标准库本身的不成熟。C++的源程序大约短20%
+    左右。
     
     
     
