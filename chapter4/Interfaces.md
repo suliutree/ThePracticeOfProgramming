@@ -192,8 +192,8 @@
         static char fieldsep[] = ",";   // field separator chars
     所有这些变量都静态地进行初始化，这些初始值将被用来检测是否需要建立或增大数组。
         上述声明描述了一种很简单的数据结构。数组line存放输入行，sline用于存放由line复制而来的字符行，并用于给每个域添加结束符
-    号。数组field指向sline的各个项。下面的图显示出这三个数组的状态，表示在输入行ab, “c d”, “e” “f”, , “g,h”被处理完之后的情况。
-    加阴影的字符不属于任何一个域。
+    号。数组field指向sline的各个项。下面的图显示出这三个数组的状态，表示在输入行ab, “c d”, “e” “f”, , “g,h”被处理完之后的情
+    况。加阴影的字符不属于任何一个域。
 ![image](https://github.com/suliutree/ThePracticeOfProgramming/blob/master/Image/02.png)
 <br>
 
@@ -445,9 +445,9 @@
             
             return nfield;
         }
-        新的advquoted用C++标准函数find_first_of确定分隔符的下一个出现位置。函数调用s.find_first_of(fieldsep, j)由字符串s的第j个
-    位置开始查找，检查fieldsep里任何字符的第一个出现。如果无法找到这种位置，该函数将返回串尾后面一个位置的指标，在最后还必须把
-    它改回范围之内。随后的一个内层for循环把字符逐个附到在fld里积累的域后面，直到分隔符处为止。
+        新的advquoted用C++标准函数find_first_of确定分隔符的下一个出现位置。函数调用s.find_first_of(fieldsep, j)由字符串s的
+    第j个位置开始查找，检查fieldsep里任何字符的第一个出现。如果无法找到这种位置，该函数将返回串尾后面一个位置的指标，在最后还
+    必须把它改回范围之内。随后的一个内层for循环把字符逐个附到在fld里积累的域后面，直到分隔符处为止。
         // advquoted: quoted field; return index of next separator
         int Csv::advquoted(const string& s, string& fld, int i)
         {
