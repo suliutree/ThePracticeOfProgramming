@@ -105,9 +105,8 @@ void printnv(Nameval *p, void *arg)
 int main()
 {
 	Nameval *nv = NULL;
-	nv = insert(nv, &htmlchars[0]);
-	for (int i = 1; i < NELEMS(htmlchars); ++i) {
-		insert(nv, &htmlchars[i]);
+	for (int i = 0; i < NELEMS(htmlchars); ++i) {
+		nv = insert(nv, &htmlchars[i]);
 	}
 
 	printf("inorder:\n");
